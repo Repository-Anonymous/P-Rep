@@ -72,6 +72,64 @@ Checkpoints are saved to `$STABLEWM_HOME` upon completion.
 
 For baseline scripts, see the stable-worldmodel [scripts](https://github.com/galilai-group/stable-worldmodel/tree/main/scripts/train) folder.
 
+## OGBench IL / offline RL policy training（冻结 LeWM）
+
+`ogbench_il_rl/` 是从 [JEPA4R `OGBench-IL-RL` 的 `state_fusion.py`](https://github.com/AIGeeksGroup/JEPA4R/blob/93ae307319a9d61b0e60ebc5e77b3ab6b6d12742/lewm_pcd/ogbench_il_rl/models/state_fusion.py) 接口移植到本仓库的下游训练模块。推理结构是 **LeWM encoder + projector + policy head**：LeWM 把 current/goal RGB224 各编码为一个 192 维 latent，后面的 GCBC 或 GCIQL 网络输出动作。训练时 LeWM 全部冻结且不会进入 optimizer；只训练 policy/value/critic 网络，策略 checkpoint 也只保存这些下游网络参数，并记录原 LeWM checkpoint 路径。
+
+本目录只覆盖 2D RGB LeWM 的 imitation learning 与 offline RL：
+
+- `gcbc`：与 JEPA4R/官方 OGBench 一致的 512×3 MLP、固定单位方差 Gaussian NLL、Adam 3e-4。
+- `gciql`：按官方 OGBench `572788d` 的 GCIQL 目标移植到同一冻结 LeWM 表征，训练 actor、V、Q1、Q2，并对双 Q 做 Polyak target update；默认 expectile=0.9、discount=0.99、tau=0.005、DDPG+BC alpha=0.3。
+- 可选 `--state-fusion` 保留链接代码的输入语义：current 使用完整 state28，goal 只保留 `state[19:22]` 的物体 XYZ，视觉 goal 仍使用完整 RGB224。该 state28 接口只适用于 single-cube。
+- Visual Cube 和非视觉 Cube 数据是独立轨迹，不能直接把 `cube-single-*.npz` 的 observation28 拼到 Visual Cube。`prepare_state28.py` 从同一 Visual Cube 行的 qpos/qvel 恢复官方 state28，训练器会校验 split、行数、dtype、维度以及 qpos/qvel/state28 SHA-256。
+
+JEPA4R 的该提交发布了冻结 LeWM、GCBC、state-fusion 和数据接口，但没有发布 GCIQL 训练循环；因此这里的 GCIQL 算法部分来自其说明中锁定的官方 OGBench 实现，输入端改为同一个冻结 LeWM/state-fusion 接口。这里不引入 JEPA4R/4R-JEPA 模型、4D 时序聚合、点云、3D encoder、DINO 或 JEPA4R 的世界模型训练代码。
+
+先为 single-cube 的 train/val 生成同源 state28；visual-only 训练可跳过这一步：
+
+```bash
+source .venv/bin/activate
+python -m ogbench_il_rl.prepare_state28 \
+  --dataset visual-cube-single-play-v0 --workers 8
+python -m ogbench_il_rl.prepare_state28 \
+  --dataset visual-cube-single-play-v0-val --workers 8
+```
+
+训练 GCBC（IL）或 GCIQL（offline RL）：
+
+```bash
+# visual-only IL
+python -m ogbench_il_rl.train \
+  --algorithm gcbc \
+  --dataset visual-cube-single-play-v0 \
+  --output outputs/ogbench_policy/gcbc_visual
+
+# LeWM + state28 IL
+python -m ogbench_il_rl.train \
+  --algorithm gcbc --state-fusion \
+  --dataset visual-cube-single-play-v0 \
+  --output outputs/ogbench_policy/gcbc_state
+
+# LeWM + state28 offline RL / GCIQL
+python -m ogbench_il_rl.train \
+  --algorithm gciql --state-fusion \
+  --dataset visual-cube-single-play-v0 \
+  --output outputs/ogbench_policy/gciql_state
+```
+
+默认读取 `/home/coder/P-Rep/ogbench/.lewm-native224/<dataset>/pixels.h5`，图像是渲染器直接输出的 224×224，不经过 64→224 放大。默认 LeWM 是 `.stable-wm/checkpoints/cube-lewm`，可用 `--lewm-checkpoint` 指定其他本地 export。训练默认 100,000 step、batch 256、FP32；`--wandb-mode online` 可记录到 W&B，`--resume` 从输出目录的 `training-state.pt` 精确续跑。
+
+加载推理模型时会重新加载冻结 LeWM，再叠加 policy-only 权重：
+
+```python
+from ogbench_il_rl.checkpoint import load_policy
+
+policy = load_policy("outputs/ogbench_policy/gciql_state/policy_step_100000.pt").cuda()
+action = policy.get_action(info).clamp(-1, 1)
+```
+
+配置说明见 `ogbench_il_rl/configs/`；实现来源边界和这里的算法差异以上述固定 commit 为准。
+
 ## Planning
 
 Evaluation configs live under `config/eval/`. Set the `policy` field to the checkpoint path **relative to `$STABLEWM_HOME`**, without the `_object.ckpt` suffix:

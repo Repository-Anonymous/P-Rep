@@ -1,0 +1,26 @@
+{
+  "interface": {
+    "repository": "https://github.com/AIGeeksGroup/JEPA4R",
+    "commit": "93ae307319a9d61b0e60ebc5e77b3ab6b6d12742",
+    "source": "lewm_pcd/ogbench_il_rl/models/state_fusion.py",
+    "adaptation": "2D RGB LeWM192 GCBC and state28/object-XYZ interface only"
+  },
+  "algorithms": {
+    "repository": "https://github.com/seohongpark/ogbench",
+    "commit": "572788d97c2a6225b8edb7c420e304c04d1b3459",
+    "sources": [
+      "impls/agents/gcbc.py",
+      "impls/agents/gciql.py",
+      "impls/utils/datasets.py",
+      "impls/utils/networks.py"
+    ],
+    "adaptation": "PyTorch policy/value/critic heads over frozen global LeWM features"
+  },
+  "excluded": [
+    "JEPA4R/4R-JEPA model training",
+    "4D temporal aggregation",
+    "point clouds and 3D encoders",
+    "DINO",
+    "JEPA4R world-model training"
+  ]
+}

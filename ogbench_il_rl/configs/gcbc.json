@@ -1,0 +1,12 @@
+{
+  "source": "JEPA4R@93ae307 state_fusion.py and OGBench@572788d gcbc.py",
+  "representation": "frozen LeWM encoder+projector, global latent 192",
+  "input": "one current and one goal renderer-native RGB224 frame",
+  "optional_state_fusion": "current official state28 plus goal object XYZ at indices 19:22",
+  "trainable": "512x512x512 GCBC action head only",
+  "action_dim": 5,
+  "objective": "fixed unit Gaussian NLL",
+  "optimizer": {"name": "Adam", "lr": 0.0003},
+  "batch_size": 256,
+  "steps": 100000
+}

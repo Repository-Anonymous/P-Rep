@@ -1,0 +1,19 @@
+{
+  "source": "OGBench@572788d gciql.py adapted to the JEPA4R frozen-LeWM state-fusion interface",
+  "representation": "frozen LeWM encoder+projector, global latent 192",
+  "trainable": "GC actor, value, Q1 and Q2 heads only",
+  "target": "Polyak target Q1/Q2",
+  "hidden_dims": [512, 512, 512],
+  "discount": 0.99,
+  "tau": 0.005,
+  "expectile": 0.9,
+  "actor_loss": "ddpgbc",
+  "alpha": 0.3,
+  "goal_sampling": {
+    "value": {"current": 0.2, "geometric_future": 0.5, "random": 0.3},
+    "actor": {"current": 0.0, "uniform_future": 1.0, "random": 0.0}
+  },
+  "optimizer": {"name": "Adam", "lr": 0.0003},
+  "batch_size": 256,
+  "steps": 100000
+}

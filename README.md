@@ -72,20 +72,20 @@ Checkpoints are saved to `$STABLEWM_HOME` upon completion.
 
 For baseline scripts, see the stable-worldmodel [scripts](https://github.com/galilai-group/stable-worldmodel/tree/main/scripts/train) folder.
 
-## OGBench IL / offline RL policy training（冻结 LeWM）
+## OGBench IL / offline RL policy training (frozen LeWM)
 
-`ogbench_il_rl/` 是从 [JEPA4R `OGBench-IL-RL` 的 `state_fusion.py`](https://github.com/AIGeeksGroup/JEPA4R/blob/93ae307319a9d61b0e60ebc5e77b3ab6b6d12742/lewm_pcd/ogbench_il_rl/models/state_fusion.py) 接口移植到本仓库的下游训练模块。推理结构是 **LeWM encoder + projector + policy head**：LeWM 把 current/goal RGB224 各编码为一个 192 维 latent，后面的 GCBC 或 GCIQL 网络输出动作。训练时 LeWM 全部冻结且不会进入 optimizer；只训练 policy/value/critic 网络，策略 checkpoint 也只保存这些下游网络参数，并记录原 LeWM checkpoint 路径。
+`ogbench_il_rl/` is a downstream training module ported into this repository from the [`state_fusion.py` interface on JEPA4R's `OGBench-IL-RL` branch](https://github.com/AIGeeksGroup/JEPA4R/blob/93ae307319a9d61b0e60ebc5e77b3ab6b6d12742/lewm_pcd/ogbench_il_rl/models/state_fusion.py). The inference architecture is **LeWM encoder + projector + policy head**: LeWM encodes the current and goal RGB224 images into one 192-dimensional latent each, and the following GCBC or GCIQL network outputs the action. LeWM remains fully frozen during training and is excluded from the optimizer; only the policy/value/critic networks are trained. Policy checkpoints likewise store only these downstream network parameters and record the path to the original LeWM checkpoint.
 
-本目录只覆盖 2D RGB LeWM 的 imitation learning 与 offline RL：
+This directory covers only imitation learning and offline RL with 2D RGB LeWM:
 
-- `gcbc`：与 JEPA4R/官方 OGBench 一致的 512×3 MLP、固定单位方差 Gaussian NLL、Adam 3e-4。
-- `gciql`：按官方 OGBench `572788d` 的 GCIQL 目标移植到同一冻结 LeWM 表征，训练 actor、V、Q1、Q2，并对双 Q 做 Polyak target update；默认 expectile=0.9、discount=0.99、tau=0.005、DDPG+BC alpha=0.3。
-- 可选 `--state-fusion` 保留链接代码的输入语义：current 使用完整 state28，goal 只保留 `state[19:22]` 的物体 XYZ，视觉 goal 仍使用完整 RGB224。该 state28 接口只适用于 single-cube。
-- Visual Cube 和非视觉 Cube 数据是独立轨迹，不能直接把 `cube-single-*.npz` 的 observation28 拼到 Visual Cube。`prepare_state28.py` 从同一 Visual Cube 行的 qpos/qvel 恢复官方 state28，训练器会校验 split、行数、dtype、维度以及 qpos/qvel/state28 SHA-256。
+- `gcbc`: the same 512×3 MLP, fixed unit-variance Gaussian NLL, and Adam at 3e-4 as JEPA4R and official OGBench.
+- `gciql`: ports the GCIQL objective from official OGBench `572788d` onto the same frozen LeWM representation. It trains the actor, V, Q1, and Q2, with Polyak target updates for the two Q networks. Defaults are expectile=0.9, discount=0.99, tau=0.005, and DDPG+BC alpha=0.3.
+- Optional `--state-fusion` preserves the input semantics of the linked code: the current input uses the complete state28, while the goal retains only the object XYZ at `state[19:22]`; the visual goal remains the complete RGB224 image. This state28 interface applies only to single-cube.
+- Visual Cube and non-visual Cube contain independent trajectories, so observation28 from `cube-single-*.npz` cannot be directly paired with Visual Cube. `prepare_state28.py` restores the official state28 from the qpos/qvel on the same Visual Cube row. The trainer verifies the split, row count, dtype, dimensions, and qpos/qvel/state28 SHA-256 hashes.
 
-JEPA4R 的该提交发布了冻结 LeWM、GCBC、state-fusion 和数据接口，但没有发布 GCIQL 训练循环；因此这里的 GCIQL 算法部分来自其说明中锁定的官方 OGBench 实现，输入端改为同一个冻结 LeWM/state-fusion 接口。这里不引入 JEPA4R/4R-JEPA 模型、4D 时序聚合、点云、3D encoder、DINO 或 JEPA4R 的世界模型训练代码。
+That JEPA4R commit publishes the frozen LeWM, GCBC, state-fusion, and data interfaces, but it does not publish a GCIQL training loop. The GCIQL algorithm here therefore comes from the official OGBench implementation pinned by its documentation, with its input adapted to the same frozen LeWM/state-fusion interface. This directory does not include the JEPA4R/4R-JEPA model, 4D temporal aggregation, point clouds, 3D encoders, DINO, or JEPA4R world-model training code.
 
-先为 single-cube 的 train/val 生成同源 state28；visual-only 训练可跳过这一步：
+First generate same-trajectory state28 files for the single-cube train and validation splits. Skip this step for visual-only training:
 
 ```bash
 source .venv/bin/activate
@@ -95,7 +95,7 @@ python -m ogbench_il_rl.prepare_state28 \
   --dataset visual-cube-single-play-v0-val --workers 8
 ```
 
-训练 GCBC（IL）或 GCIQL（offline RL）：
+Train GCBC (IL) or GCIQL (offline RL):
 
 ```bash
 # visual-only IL
@@ -117,9 +117,9 @@ python -m ogbench_il_rl.train \
   --output outputs/ogbench_policy/gciql_state
 ```
 
-默认读取 `/home/coder/P-Rep/ogbench/.lewm-native224/<dataset>/pixels.h5`，图像是渲染器直接输出的 224×224，不经过 64→224 放大。默认 LeWM 是 `.stable-wm/checkpoints/cube-lewm`，可用 `--lewm-checkpoint` 指定其他本地 export。训练默认 100,000 step、batch 256、FP32；`--wandb-mode online` 可记录到 W&B，`--resume` 从输出目录的 `training-state.pt` 精确续跑。
+By default, the trainer reads `/home/coder/P-Rep/ogbench/.lewm-native224/<dataset>/pixels.h5`. These images are rendered directly at 224×224 and are not upscaled from 64 to 224. The default LeWM checkpoint is `.stable-wm/checkpoints/cube-lewm`; use `--lewm-checkpoint` to select another local export. Training defaults to 100,000 steps, batch size 256, and FP32. Use `--wandb-mode online` to log to W&B and `--resume` to resume exactly from `training-state.pt` in the output directory.
 
-加载推理模型时会重新加载冻结 LeWM，再叠加 policy-only 权重：
+Loading an inference model reloads the frozen LeWM and then applies the policy-only weights:
 
 ```python
 from ogbench_il_rl.checkpoint import load_policy
@@ -128,7 +128,7 @@ policy = load_policy("outputs/ogbench_policy/gciql_state/policy_step_100000.pt")
 action = policy.get_action(info).clamp(-1, 1)
 ```
 
-配置说明见 `ogbench_il_rl/configs/`；实现来源边界和这里的算法差异以上述固定 commit 为准。
+See `ogbench_il_rl/configs/` for configuration details. The pinned commits above define the implementation provenance, scope, and algorithmic differences.
 
 ## Planning
 
@@ -163,17 +163,17 @@ NUM_EVAL=50 ./run_cube_inference.sh
 Multi-episode runs save one numbered MP4 and PNG preview per episode.
 
 <!-- ogbench-finetune-results:lewm_visual_cube_native224_ft8_20261005_211637:start -->
-## OGBench visual Cube 原生224微调与评测（本地实验）
+## OGBench Visual Cube native-224 fine-tuning and evaluation (local experiment)
 
-已完成四种 Cube × play/noisy 的 8 个独立模型微调，每模型 80,000 次更新；自动在线评测共 8,000 回合，每模型 1,000 回合。
+8 independent models were fine-tuned across the four Cube variants × play/noisy, with 80,000 updates per model. Automated online evaluation covered 8,000 episodes in total, with 1,000 episodes per model.
 
-本次共成功 **16/8000（0.20%）**。最高为 triple-noisy 的 **1.40%**；double-noisy 和 triple-play 各为 0.10%，其余为 0%。训练预测 loss 下降，但本次微调与 CEM 配置的目标任务成功率仍很低。
+The models succeeded in **16/8000 episodes (0.20%)**. Triple-noisy was highest at **1.40%**; double-noisy and triple-play each reached 0.10%, while the others reached 0%. The training prediction loss decreased, but task success remained low with this fine-tuning and CEM configuration.
 
-### 与 OGBench Table 5 对照
+### Comparison with OGBench Table 5
 
-单位为成功率百分比。六个 baseline 列逐项取自 [ogbench.pdf 第21页 Table 5](../ogbench/ogbench.pdf#page=21)。论文使用原生64观测，本实验使用原生224；论文标准差来自4个独立训练种子，本次每份数据只微调1个模型，标准差来自4个评测种子。因此此表是不同图像分辨率和种子设置下的参照比较。
+Values are success rates in percent. The six baseline columns are transcribed from [page 21, Table 5 of ogbench.pdf](../ogbench/ogbench.pdf#page=21). The paper uses native-64 observations, whereas this experiment uses native-224 observations. The paper's standard deviations come from 4 independent training seeds; here, 1 model was fine-tuned per dataset and the standard deviations come from 4 evaluation seeds. This table is therefore a reference comparison across different image resolutions and seed settings.
 
-| Dataset | GCBC | GCIVL | GCIQL | QRL | CRL | HIQL | LeWM 原checkpoint | LeWM 微调 |
+| Dataset | GCBC | GCIVL | GCIQL | QRL | CRL | HIQL | Original LeWM checkpoint | Fine-tuned LeWM |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
 | visual-cube-single-play-v0 | 5 ± 1 | 60 ± 5 | 30 ± 5 | 41 ± 15 | 31 ± 15 | 89 ± 0 | 0 ± 0 | 0.00 ± 0.00 |
 | visual-cube-double-play-v0 | 1 ± 1 | 10 ± 2 | 1 ± 1 | 5 ± 0 | 2 ± 1 | 39 ± 2 | 0 ± 0 | 0.00 ± 0.00 |
@@ -184,32 +184,32 @@ Multi-episode runs save one numbered MP4 and PNG preview per episode.
 | visual-cube-triple-noisy-v0 | 16 ± 1 | 18 ± 1 | 12 ± 1 | 9 ± 4 | 16 ± 1 | 23 ± 2 | 0 ± 0 | 1.40 ± 0.66 |
 | visual-cube-quadruple-noisy-v0 | 9 ± 0 | 0 ± 0 | 2 ± 2 | 0 ± 0 | 8 ± 2 | 12 ± 8 | 0 ± 0 | 0.00 ± 0.00 |
 
-原checkpoint列来自先前固定 single-cube 权重在四种 Cube 上各1,000回合的评测；play/noisy共用该结果。多方块原checkpoint列属于跨环境迁移；微调列则是各自数据训练的独立模型。
+The original-checkpoint column comes from an earlier evaluation of fixed single-cube weights for 1,000 episodes on each of the four Cube variants; play and noisy share those results. The multi-cube original-checkpoint entries are cross-environment transfer results, while each fine-tuned entry uses an independent model trained on its corresponding dataset.
 
-### 训练与评测条件
+### Training and evaluation conditions
 
-- 八个模型均从本地原始 `cube-lewm` checkpoint初始化，全部参数参与更新。batch=128，AdamW lr=1e-5，5% warmup后cosine；训练目标为预测MSE + 0.09×SIGReg。
-- 官方 train NPZ用于优化及动作标准化，独立 `-val.npz`仅用于验证。图片由同一帧qpos/qvel还原后直接渲染为224×224；训练、验证、在线观测、goal及原始视频均为原生224。模型输入为RGB和动作，qpos/qvel仅用于重渲染。
-- 原顺序验证batch中的连续轨迹会抬高SIGReg统计量；最终从所有已保存epoch中按**完整独立val集最低预测MSE**选择评测权重。原组合指标和训练权重均保留，详见每模型的 `prediction-checkpoint-selection.json`。W&B中的 `val/pred_loss` 是预测误差；原 `val/loss` 包含SIGReg，不能与随机训练batch的总loss直接比较。
-- 每模型使用5个官方目标 × 4个评测seed（0,1,2,3）× 50回合。CEM：300 samples，30 iterations，30 elites；horizon=5，receding=5，action block=5，observed history=1。每模型保存5段原始224视频，共40段，无白边。
+- All eight models were initialized from the local original `cube-lewm` checkpoint, and all parameters were updated. Training used batch=128, AdamW with lr=1e-5, and cosine decay after a 5% warmup. The objective was prediction MSE + 0.09×SIGReg.
+- The official train NPZ was used for optimization and action normalization; the independent `-val.npz` was used only for validation. Images were restored from the qpos/qvel of the same frame and rendered directly at 224×224. Training images, validation images, online observations, goals, and raw videos were all native-224. Model inputs were RGB and actions; qpos/qvel were used only for re-rendering.
+- Contiguous trajectories in the original sequential validation batches inflated the SIGReg statistic. Evaluation weights were ultimately selected from all saved epochs by the **lowest prediction MSE on the complete independent validation set**. The original combined metrics and training weights were retained; see each model's `prediction-checkpoint-selection.json`. W&B `val/pred_loss` is the prediction error, while the original `val/loss` includes SIGReg and cannot be compared directly with the total loss from randomly sampled training batches.
+- Each model used 5 official goals × 4 evaluation seeds (0,1,2,3) × 50 episodes. CEM used 300 samples, 30 iterations, and 30 elites, with horizon=5, receding=5, action block=5, and observed history=1. 5 raw native-224 videos were saved per model, for 40 videos total, with no white borders.
 
-### 成功数、选中权重与训练记录
+### Success counts, selected weights, and training records
 
-| Dataset | 成功数 / 回合数 | val预测MSE | 选中checkpoint | W&B |
+| Dataset | Successes / episodes | Validation prediction MSE | Selected checkpoint | W&B |
 |---|---:|---:|---|---|
-| visual-cube-single-play-v0 | 0 / 1000 | 0.003454 | [epoch 11](outputs/lewm_visual_cube_native224_ft8_20261005_211637/training/visual-cube-single-play-v0/checkpoints/epoch_11) | [loss与评测](https://wandb.ai/visual-intelligence-laboratory/P-Rep/runs/02d2eeeb956d) |
-| visual-cube-single-noisy-v0 | 0 / 1000 | 0.012328 | [epoch 9](outputs/lewm_visual_cube_native224_ft8_20261005_211637/training/visual-cube-single-noisy-v0/checkpoints/epoch_09) | [loss与评测](https://wandb.ai/visual-intelligence-laboratory/P-Rep/runs/49644b5ddd5f) |
-| visual-cube-double-play-v0 | 0 / 1000 | 0.005578 | [epoch 9](outputs/lewm_visual_cube_native224_ft8_20261005_211637/training/visual-cube-double-play-v0/checkpoints/epoch_09) | [loss与评测](https://wandb.ai/visual-intelligence-laboratory/P-Rep/runs/27125ca414fb) |
-| visual-cube-double-noisy-v0 | 1 / 1000 | 0.013212 | [epoch 10](outputs/lewm_visual_cube_native224_ft8_20261005_211637/training/visual-cube-double-noisy-v0/checkpoints/epoch_10) | [loss与评测](https://wandb.ai/visual-intelligence-laboratory/P-Rep/runs/9e583c5d81b0) |
-| visual-cube-triple-play-v0 | 1 / 1000 | 0.005754 | [epoch 3](outputs/lewm_visual_cube_native224_ft8_20261005_211637/training/visual-cube-triple-play-v0/checkpoints/epoch_03) | [loss与评测](https://wandb.ai/visual-intelligence-laboratory/P-Rep/runs/2f90dc4920b7) |
-| visual-cube-triple-noisy-v0 | 14 / 1000 | 0.011127 | [epoch 3](outputs/lewm_visual_cube_native224_ft8_20261005_211637/training/visual-cube-triple-noisy-v0/checkpoints/epoch_03) | [loss与评测](https://wandb.ai/visual-intelligence-laboratory/P-Rep/runs/6c4bff782f40) |
-| visual-cube-quadruple-play-v0 | 0 / 1000 | 0.006280 | [epoch 2](outputs/lewm_visual_cube_native224_ft8_20261005_211637/training/visual-cube-quadruple-play-v0/checkpoints/epoch_02) | [loss与评测](https://wandb.ai/visual-intelligence-laboratory/P-Rep/runs/05a5b67ba674) |
-| visual-cube-quadruple-noisy-v0 | 0 / 1000 | 0.010974 | [epoch 3](outputs/lewm_visual_cube_native224_ft8_20261005_211637/training/visual-cube-quadruple-noisy-v0/checkpoints/epoch_03) | [loss与评测](https://wandb.ai/visual-intelligence-laboratory/P-Rep/runs/2d8210bffdf2) |
+| visual-cube-single-play-v0 | 0 / 1000 | 0.003454 | [epoch 11](outputs/lewm_visual_cube_native224_ft8_20261005_211637/training/visual-cube-single-play-v0/checkpoints/epoch_11) | [loss and evaluation](https://wandb.ai/visual-intelligence-laboratory/P-Rep/runs/02d2eeeb956d) |
+| visual-cube-single-noisy-v0 | 0 / 1000 | 0.012328 | [epoch 9](outputs/lewm_visual_cube_native224_ft8_20261005_211637/training/visual-cube-single-noisy-v0/checkpoints/epoch_09) | [loss and evaluation](https://wandb.ai/visual-intelligence-laboratory/P-Rep/runs/49644b5ddd5f) |
+| visual-cube-double-play-v0 | 0 / 1000 | 0.005578 | [epoch 9](outputs/lewm_visual_cube_native224_ft8_20261005_211637/training/visual-cube-double-play-v0/checkpoints/epoch_09) | [loss and evaluation](https://wandb.ai/visual-intelligence-laboratory/P-Rep/runs/27125ca414fb) |
+| visual-cube-double-noisy-v0 | 1 / 1000 | 0.013212 | [epoch 10](outputs/lewm_visual_cube_native224_ft8_20261005_211637/training/visual-cube-double-noisy-v0/checkpoints/epoch_10) | [loss and evaluation](https://wandb.ai/visual-intelligence-laboratory/P-Rep/runs/9e583c5d81b0) |
+| visual-cube-triple-play-v0 | 1 / 1000 | 0.005754 | [epoch 3](outputs/lewm_visual_cube_native224_ft8_20261005_211637/training/visual-cube-triple-play-v0/checkpoints/epoch_03) | [loss and evaluation](https://wandb.ai/visual-intelligence-laboratory/P-Rep/runs/2f90dc4920b7) |
+| visual-cube-triple-noisy-v0 | 14 / 1000 | 0.011127 | [epoch 3](outputs/lewm_visual_cube_native224_ft8_20261005_211637/training/visual-cube-triple-noisy-v0/checkpoints/epoch_03) | [loss and evaluation](https://wandb.ai/visual-intelligence-laboratory/P-Rep/runs/6c4bff782f40) |
+| visual-cube-quadruple-play-v0 | 0 / 1000 | 0.006280 | [epoch 2](outputs/lewm_visual_cube_native224_ft8_20261005_211637/training/visual-cube-quadruple-play-v0/checkpoints/epoch_02) | [loss and evaluation](https://wandb.ai/visual-intelligence-laboratory/P-Rep/runs/05a5b67ba674) |
+| visual-cube-quadruple-noisy-v0 | 0 / 1000 | 0.010974 | [epoch 3](outputs/lewm_visual_cube_native224_ft8_20261005_211637/training/visual-cube-quadruple-noisy-v0/checkpoints/epoch_03) | [loss and evaluation](https://wandb.ai/visual-intelligence-laboratory/P-Rep/runs/2d8210bffdf2) |
 
-- [完整指标](outputs/lewm_visual_cube_native224_ft8_20261005_211637/metrics.json)、[全部结果核对](outputs/lewm_visual_cube_native224_ft8_20261005_211637/completion-verification.json)、[运行配置](outputs/lewm_visual_cube_native224_ft8_20261005_211637/manifest.json)。
-- [逐任务成功率及实验说明](zeyu-understand.md#ogbench)、[评测记录和40段视频](outputs/lewm_visual_cube_native224_ft8_20261005_211637/evaluation)、[八个模型的训练日志与权重](outputs/lewm_visual_cube_native224_ft8_20261005_211637/training)。
-- [W&B项目](https://forge.coreweave.com/wandb/visual-intelligence-laboratory/P-Rep)。
-- 执行入口：`launch_ogbench_finetune_8gpu.sh` → `run_ogbench_finetune_pipeline.py`；本次输出目录为 `outputs/lewm_visual_cube_native224_ft8_20261005_211637`。
+- [Complete metrics](outputs/lewm_visual_cube_native224_ft8_20261005_211637/metrics.json), [full result verification](outputs/lewm_visual_cube_native224_ft8_20261005_211637/completion-verification.json), and [run configuration](outputs/lewm_visual_cube_native224_ft8_20261005_211637/manifest.json).
+- [Per-task success rates and experiment notes](zeyu-understand.md#ogbench), [evaluation records and 40 videos](outputs/lewm_visual_cube_native224_ft8_20261005_211637/evaluation), and [training logs and weights for all eight models](outputs/lewm_visual_cube_native224_ft8_20261005_211637/training).
+- [W&B project](https://forge.coreweave.com/wandb/visual-intelligence-laboratory/P-Rep).
+- Entry point: `launch_ogbench_finetune_8gpu.sh` → `run_ogbench_finetune_pipeline.py`; the output directory for this run is `outputs/lewm_visual_cube_native224_ft8_20261005_211637`.
 <!-- ogbench-finetune-results:lewm_visual_cube_native224_ft8_20261005_211637:end -->
 
 ## Pretrained Checkpoints

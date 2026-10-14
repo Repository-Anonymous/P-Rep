@@ -1,0 +1,66 @@
+output_model_name: cube-vjepa2-lewm
+subdir: cube-vjepa2-lewm
+seed: 3072
+train_split: 0.9
+history_size: 3
+num_preds: 1
+
+data:
+  path: ${oc.env:STABLEWM_HOME,/home/coder/P-Rep/le-wm/.stable-wm}/datasets/ogbench/cube_single_expert.h5
+  context_frames: 64
+  num_steps: ${eval:'${num_preds} + ${history_size}'}
+  frameskip: 5
+  sample_stride: 1
+
+model:
+  _target_: vjepa2_lewm.VJEPA21LeWM
+  checkpoint_path: ${oc.env:STABLEWM_HOME,/home/coder/P-Rep/le-wm/.stable-wm}/vjepa2/vjepa2_1_vitb_dist_vitG_384.pt
+  vjepa2_repo: /home/coder/P-Rep/vjepa2
+  image_size: 384
+  num_video_frames: ${data.context_frames}
+  embed_dim: 192
+  history_size: ${history_size}
+  action_dim: 25
+  predictor_depth: 6
+  predictor_heads: 16
+  predictor_mlp_dim: 2048
+  encoder_chunk_size: 1
+  freeze_backbone: true
+
+loader:
+  batch_size: 1
+  num_workers: 4
+  persistent_workers: true
+  prefetch_factor: 2
+  pin_memory: true
+
+trainer:
+  max_epochs: 100
+  devices: 1
+  accelerator: gpu
+  precision: bf16-mixed
+  gradient_clip_val: 1.0
+  log_every_n_steps: 10
+
+optimizer:
+  type: AdamW
+  lr: 1e-4
+  weight_decay: 1e-3
+
+loss:
+  sigreg:
+    weight: 0.09
+    kwargs:
+      knots: 17
+      num_proj: 1024
+
+wandb:
+  enabled: false
+  config:
+    project: lewm
+    name: cube-vjepa2-lewm
+
+hydra:
+  run:
+    dir: .
+  output_subdir: null

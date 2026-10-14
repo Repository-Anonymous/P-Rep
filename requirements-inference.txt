@@ -1,0 +1,6 @@
+stable-worldmodel[train,env]==0.1.1
+hdf5plugin==7.0.0
+transformers>=4.50,<5
+datasets>=3,<5
+pyarrow>=20,<25
+huggingface-hub>=0.36,<1

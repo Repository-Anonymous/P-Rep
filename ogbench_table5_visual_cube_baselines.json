@@ -1,0 +1,258 @@
+{
+  "source_pdf": "/home/coder/P-Rep/ogbench/ogbench.pdf",
+  "page": 21,
+  "table": 5,
+  "metric": "average binary success percent over five goals",
+  "seeds": 4,
+  "std": "over independently trained seeds",
+  "rows": [
+    {
+      "dataset": "visual-cube-single-play-v0",
+      "variant": "single",
+      "dataset_type": "play",
+      "methods": {
+        "GCBC": {
+          "mean": 5,
+          "std": 1
+        },
+        "GCIVL": {
+          "mean": 60,
+          "std": 5
+        },
+        "GCIQL": {
+          "mean": 30,
+          "std": 5
+        },
+        "QRL": {
+          "mean": 41,
+          "std": 15
+        },
+        "CRL": {
+          "mean": 31,
+          "std": 15
+        },
+        "HIQL": {
+          "mean": 89,
+          "std": 0
+        }
+      }
+    },
+    {
+      "dataset": "visual-cube-double-play-v0",
+      "variant": "double",
+      "dataset_type": "play",
+      "methods": {
+        "GCBC": {
+          "mean": 1,
+          "std": 1
+        },
+        "GCIVL": {
+          "mean": 10,
+          "std": 2
+        },
+        "GCIQL": {
+          "mean": 1,
+          "std": 1
+        },
+        "QRL": {
+          "mean": 5,
+          "std": 0
+        },
+        "CRL": {
+          "mean": 2,
+          "std": 1
+        },
+        "HIQL": {
+          "mean": 39,
+          "std": 2
+        }
+      }
+    },
+    {
+      "dataset": "visual-cube-triple-play-v0",
+      "variant": "triple",
+      "dataset_type": "play",
+      "methods": {
+        "GCBC": {
+          "mean": 15,
+          "std": 2
+        },
+        "GCIVL": {
+          "mean": 14,
+          "std": 2
+        },
+        "GCIQL": {
+          "mean": 15,
+          "std": 1
+        },
+        "QRL": {
+          "mean": 16,
+          "std": 1
+        },
+        "CRL": {
+          "mean": 17,
+          "std": 2
+        },
+        "HIQL": {
+          "mean": 21,
+          "std": 0
+        }
+      }
+    },
+    {
+      "dataset": "visual-cube-quadruple-play-v0",
+      "variant": "quadruple",
+      "dataset_type": "play",
+      "methods": {
+        "GCBC": {
+          "mean": 8,
+          "std": 1
+        },
+        "GCIVL": {
+          "mean": 0,
+          "std": 0
+        },
+        "GCIQL": {
+          "mean": 7,
+          "std": 1
+        },
+        "QRL": {
+          "mean": 5,
+          "std": 1
+        },
+        "CRL": {
+          "mean": 4,
+          "std": 1
+        },
+        "HIQL": {
+          "mean": 14,
+          "std": 1
+        }
+      }
+    },
+    {
+      "dataset": "visual-cube-single-noisy-v0",
+      "variant": "single",
+      "dataset_type": "noisy",
+      "methods": {
+        "GCBC": {
+          "mean": 14,
+          "std": 3
+        },
+        "GCIVL": {
+          "mean": 75,
+          "std": 3
+        },
+        "GCIQL": {
+          "mean": 48,
+          "std": 3
+        },
+        "QRL": {
+          "mean": 10,
+          "std": 5
+        },
+        "CRL": {
+          "mean": 39,
+          "std": 30
+        },
+        "HIQL": {
+          "mean": 99,
+          "std": 0
+        }
+      }
+    },
+    {
+      "dataset": "visual-cube-double-noisy-v0",
+      "variant": "double",
+      "dataset_type": "noisy",
+      "methods": {
+        "GCBC": {
+          "mean": 5,
+          "std": 1
+        },
+        "GCIVL": {
+          "mean": 17,
+          "std": 4
+        },
+        "GCIQL": {
+          "mean": 22,
+          "std": 2
+        },
+        "QRL": {
+          "mean": 6,
+          "std": 2
+        },
+        "CRL": {
+          "mean": 6,
+          "std": 3
+        },
+        "HIQL": {
+          "mean": 59,
+          "std": 3
+        }
+      }
+    },
+    {
+      "dataset": "visual-cube-triple-noisy-v0",
+      "variant": "triple",
+      "dataset_type": "noisy",
+      "methods": {
+        "GCBC": {
+          "mean": 16,
+          "std": 1
+        },
+        "GCIVL": {
+          "mean": 18,
+          "std": 1
+        },
+        "GCIQL": {
+          "mean": 12,
+          "std": 1
+        },
+        "QRL": {
+          "mean": 9,
+          "std": 4
+        },
+        "CRL": {
+          "mean": 16,
+          "std": 1
+        },
+        "HIQL": {
+          "mean": 23,
+          "std": 2
+        }
+      }
+    },
+    {
+      "dataset": "visual-cube-quadruple-noisy-v0",
+      "variant": "quadruple",
+      "dataset_type": "noisy",
+      "methods": {
+        "GCBC": {
+          "mean": 9,
+          "std": 0
+        },
+        "GCIVL": {
+          "mean": 0,
+          "std": 0
+        },
+        "GCIQL": {
+          "mean": 2,
+          "std": 2
+        },
+        "QRL": {
+          "mean": 0,
+          "std": 0
+        },
+        "CRL": {
+          "mean": 8,
+          "std": 2
+        },
+        "HIQL": {
+          "mean": 12,
+          "std": 8
+        }
+      }
+    }
+  ]
+}
